@@ -62,7 +62,8 @@ namespace JanusQuest.Runtime
                 return;
             }
 
-            WebRTC.Initialize();
+            Debug.Log($"JanusDualStreamManager config => Front: {_config.FrontJanusWsUrl} (id={_config.FrontStreamId}), Rear: {_config.RearJanusWsUrl} (id={_config.RearStreamId})");
+
             _webrtcUpdateCoroutine = StartCoroutine(WebRTC.Update());
 
             _ = StartRolePipelineAsync(StreamRole.Front);
@@ -269,7 +270,6 @@ namespace JanusQuest.Runtime
                 _webrtcUpdateCoroutine = null;
             }
 
-            WebRTC.Dispose();
         }
     }
 }

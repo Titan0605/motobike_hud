@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.WebSockets;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -100,7 +99,7 @@ namespace JanusQuest.Networking
                 }
             }
 
-            var json = JsonSerializer.Serialize(payload);
+            var json = JanusJson.Serialize(payload);
             await SendRawAsync(json, cancellationToken);
 
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
@@ -194,22 +193,13 @@ namespace JanusQuest.Networking
 
         private void RouteMessage(string message)
         {
-            try
+            if (JanusJson.TryGetString(message, "transaction", out var transaction))
             {
-                using var doc = JsonDocument.Parse(message);
-                if (doc.RootElement.TryGetProperty("transaction", out var transactionElement))
+                if (!string.IsNullOrWhiteSpace(transaction) && _pendingTransactions.TryGetValue(transaction, out var tcs))
                 {
-                    var transaction = transactionElement.GetString();
-                    if (!string.IsNullOrWhiteSpace(transaction) && _pendingTransactions.TryGetValue(transaction, out var tcs))
-                    {
-                        tcs.TrySetResult(message);
-                        return;
-                    }
+                    tcs.TrySetResult(message);
+                    return;
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Failed to parse Janus WS message: {ex.Message}");
             }
 
             MessageReceived?.Invoke(message);

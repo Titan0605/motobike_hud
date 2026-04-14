@@ -25,6 +25,19 @@ This folder contains a Unity-ready `Assets/` package that mirrors the React Janu
 5. Assign config and optional `RawImage` render targets.
 6. Press Play and verify both streams transition to online.
 
+## Preconfigured LAN Defaults
+
+The module now includes default endpoints for immediate test on your current LAN:
+
+- Front: `ws://192.168.0.201:8188/janus`
+- Rear: `ws://192.168.0.202:8188/janus`
+- Stream IDs: `99` and `100`
+
+If your Janus websocket endpoint does not use `/janus`, update to:
+
+- `ws://192.168.0.201:8188`
+- `ws://192.168.0.202:8188`
+
 ## Notes
 
 - This implementation expects WebSocket Janus endpoints.

@@ -8,8 +8,8 @@ namespace JanusQuest.Config
     public sealed class JanusDualStreamConfig : ScriptableObject
     {
         [Header("Janus WebSocket URLs")]
-        public string FrontJanusWsUrl = "ws://192.168.0.198:8188";
-        public string RearJanusWsUrl = "ws://192.168.0.200:8188";
+        public string FrontJanusWsUrl = "ws://192.168.0.201:8188/janus";
+        public string RearJanusWsUrl = "ws://192.168.0.202:8188/janus";
 
         [Header("Stream IDs")]
         public long FrontStreamId = 99;

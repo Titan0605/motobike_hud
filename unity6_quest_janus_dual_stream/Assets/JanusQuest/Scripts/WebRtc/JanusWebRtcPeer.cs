@@ -38,7 +38,15 @@ namespace JanusQuest.WebRtc
             await AwaitOperation(setRemoteOp, "SetRemoteDescription failed");
 
             var createAnswerOp = _peerConnection.CreateAnswer();
-            await AwaitOperation(createAnswerOp, "CreateAnswer failed");
+            while (!createAnswerOp.IsDone)
+            {
+                await Task.Yield();
+            }
+
+            if (createAnswerOp.IsError)
+            {
+                throw new InvalidOperationException($"CreateAnswer failed: {createAnswerOp.Error.message}");
+            }
 
             var answer = createAnswerOp.Desc;
             var setLocalOp = _peerConnection.SetLocalDescription(ref answer);
@@ -105,19 +113,6 @@ namespace JanusQuest.WebRtc
         }
 
         private static async Task AwaitOperation(RTCSetSessionDescriptionAsyncOperation op, string message)
-        {
-            while (!op.IsDone)
-            {
-                await Task.Yield();
-            }
-
-            if (op.IsError)
-            {
-                throw new InvalidOperationException($"{message}: {op.Error.message}");
-            }
-        }
-
-        private static async Task AwaitOperation(RTCCreateSessionDescriptionAsyncOperation op, string message)
         {
             while (!op.IsDone)
             {

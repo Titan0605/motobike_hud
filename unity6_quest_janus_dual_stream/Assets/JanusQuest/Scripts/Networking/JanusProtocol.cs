@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 
 namespace JanusQuest.Networking
 {
@@ -9,78 +8,45 @@ namespace JanusQuest.Networking
 
         public static bool TryGetJanusType(string json, out string janusType)
         {
-            janusType = string.Empty;
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("janus", out var janusElement))
-            {
-                return false;
-            }
-
-            janusType = janusElement.GetString() ?? string.Empty;
-            return !string.IsNullOrWhiteSpace(janusType);
+            return JanusJson.TryGetString(json, "janus", out janusType) && !string.IsNullOrWhiteSpace(janusType);
         }
 
         public static bool TryGetSessionId(string json, out long sessionId)
         {
             sessionId = 0;
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("data", out var data))
-            {
-                return false;
-            }
-
-            if (!data.TryGetProperty("id", out var id))
-            {
-                return false;
-            }
-
-            return id.TryGetInt64(out sessionId);
+            return JanusJson.TryGetObject(json, "data", out var dataJson) && JanusJson.TryGetLong(dataJson, "id", out sessionId);
         }
 
         public static bool TryGetHandleId(string json, out long handleId)
         {
             handleId = 0;
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("data", out var data))
-            {
-                return false;
-            }
-
-            if (!data.TryGetProperty("id", out var id))
-            {
-                return false;
-            }
-
-            return id.TryGetInt64(out handleId);
+            return JanusJson.TryGetObject(json, "data", out var dataJson) && JanusJson.TryGetLong(dataJson, "id", out handleId);
         }
 
         public static bool TryGetJsepOffer(string json, out string sdp)
         {
             sdp = string.Empty;
-            using var doc = JsonDocument.Parse(json);
 
-            if (!doc.RootElement.TryGetProperty("jsep", out var jsep))
+            if (!JanusJson.TryGetObject(json, "jsep", out var jsepJson))
             {
                 return false;
             }
 
-            if (!jsep.TryGetProperty("type", out var typeElement))
+            if (!JanusJson.TryGetString(jsepJson, "type", out var type))
             {
                 return false;
             }
 
-            var type = typeElement.GetString();
             if (!string.Equals(type, "offer", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
-            if (!jsep.TryGetProperty("sdp", out var sdpElement))
+            if (!JanusJson.TryGetString(jsepJson, "sdp", out sdp))
             {
                 return false;
             }
 
-            sdp = sdpElement.GetString() ?? string.Empty;
             return !string.IsNullOrWhiteSpace(sdp);
         }
 
@@ -90,61 +56,48 @@ namespace JanusQuest.Networking
             sdpMid = string.Empty;
             sdpMLineIndex = 0;
 
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("janus", out var janusTypeElement))
+            if (!JanusJson.TryGetString(json, "janus", out var janusType))
             {
                 return false;
             }
 
-            var janusType = janusTypeElement.GetString();
             if (!string.Equals(janusType, "trickle", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
-            if (!doc.RootElement.TryGetProperty("candidate", out var candidateElement))
+            if (!JanusJson.TryGetObject(json, "candidate", out var candidateJson))
             {
                 return false;
             }
 
-            if (!candidateElement.TryGetProperty("candidate", out var candidateValue))
+            if (!JanusJson.TryGetString(candidateJson, "candidate", out candidate))
             {
                 return false;
             }
 
-            candidate = candidateValue.GetString() ?? string.Empty;
-            sdpMid = candidateElement.TryGetProperty("sdpMid", out var midElement) ? (midElement.GetString() ?? string.Empty) : string.Empty;
-            sdpMLineIndex = candidateElement.TryGetProperty("sdpMLineIndex", out var indexElement) && indexElement.TryGetInt32(out var index)
-                ? index
-                : 0;
+            JanusJson.TryGetString(candidateJson, "sdpMid", out sdpMid);
+            JanusJson.TryGetInt(candidateJson, "sdpMLineIndex", out sdpMLineIndex);
 
             return !string.IsNullOrWhiteSpace(candidate);
         }
 
         public static string ExtractErrorReason(string json)
         {
-            try
+            if (JanusJson.TryGetObject(json, "error", out var errorJson))
             {
-                using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("error", out var error))
+                if (JanusJson.TryGetString(errorJson, "reason", out var reason) && !string.IsNullOrWhiteSpace(reason))
                 {
-                    if (error.TryGetProperty("reason", out var reason))
-                    {
-                        return reason.GetString() ?? "Unknown Janus error";
-                    }
-
-                    if (error.TryGetProperty("code", out var code))
-                    {
-                        return $"Janus error code: {code.GetInt32()}";
-                    }
+                    return reason;
                 }
 
-                return "Unknown Janus error";
+                if (JanusJson.TryGetInt(errorJson, "code", out var code))
+                {
+                    return $"Janus error code: {code}";
+                }
             }
-            catch
-            {
-                return "Invalid Janus error payload";
-            }
+
+            return "Unknown Janus error";
         }
 
         public static bool IsAck(string json)

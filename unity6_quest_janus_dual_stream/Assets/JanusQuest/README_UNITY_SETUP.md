@@ -16,6 +16,20 @@ If your Unity 6.3 editor cannot resolve the latest package revision, pin the lat
 4. Optionally assign two `RawImage` references for front/rear playback.
 5. (Optional) Add `JanusStatusLogger` and assign manager to print state transitions.
 
+## Default Test Values Included
+
+The config script now ships with these defaults for quick LAN testing:
+
+- FrontJanusWsUrl: `ws://192.168.0.201:8188/janus`
+- RearJanusWsUrl: `ws://192.168.0.202:8188/janus`
+- FrontStreamId: `99`
+- RearStreamId: `100`
+
+If your Janus websocket endpoint is exposed without `/janus`, change URLs to:
+
+- `ws://192.168.0.201:8188`
+- `ws://192.168.0.202:8188`
+
 ## Config Mapping from React .env
 
 - `VITE_JANUS_SERVER_FRONT_URL` -> `FrontJanusWsUrl` (WebSocket endpoint)

@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using JanusQuest.Config;
@@ -19,7 +18,6 @@ namespace JanusQuest.Runtime
 
         private long _sessionId;
         private long _handleId;
-        private bool _started;
         private bool _disposed;
         private CancellationTokenSource _runCts;
         private Task _keepAliveTask;
@@ -137,7 +135,6 @@ namespace JanusQuest.Runtime
             {
                 _sessionId = 0;
                 _handleId = 0;
-                _started = false;
             }
         }
 
@@ -194,8 +191,6 @@ namespace JanusQuest.Runtime
                         token: _config.Token,
                         apisecret: _config.ApiSecret,
                         cancellationToken: _runCts?.Token ?? CancellationToken.None);
-
-                    _started = true;
                     return;
                 }
 
@@ -205,10 +200,8 @@ namespace JanusQuest.Runtime
                     return;
                 }
 
-                using var doc = JsonDocument.Parse(message);
-                if (doc.RootElement.TryGetProperty("janus", out var janusElement))
+                if (JanusProtocol.TryGetJanusType(message, out var janusType))
                 {
-                    var janusType = janusElement.GetString() ?? string.Empty;
                     if (string.Equals(janusType, "error", StringComparison.OrdinalIgnoreCase))
                     {
                         Fail($"[{_role}] Janus error: {JanusProtocol.ExtractErrorReason(message)}");
