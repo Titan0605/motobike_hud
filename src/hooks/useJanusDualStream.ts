@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Janus, { type JanusJsep, type JanusMessage, type JanusPluginHandle } from "janus-gateway/npm/dist/janus.es.js";
 import adapter from "webrtc-adapter";
-import { JANUS_CONFIG, validateJanusConfig } from "../config/janusConfig";
+import { getJanusServerUrl, JANUS_CONFIG, type JanusTransport, validateJanusConfig } from "../config/janusConfig";
 
 type CameraStatus = "connecting" | "online" | "error";
 type ConnectionStatus = "connecting" | "partial" | "online" | "error";
@@ -23,12 +23,21 @@ type UseJanusDualStreamResult = {
   reconnectAttemptsRear: number;
   isFrontOnline: boolean;
   isRearOnline: boolean;
+  transport: JanusTransport;
+  isSwitchingTransport: boolean;
+  switchTransport: (nextTransport: JanusTransport) => void;
+};
+
+type UseJanusDualStreamOptions = {
+  initialTransport: JanusTransport;
+  enabled?: boolean;
 };
 
 const STREAMING_PLUGIN = "janus.plugin.streaming";
+const MAX_SWITCH_RETRIES = 3;
 const janusWithDependencies = Janus as unknown as JanusWithDependencies;
 
-export const useJanusDualStream = (): UseJanusDualStreamResult => {
+export const useJanusDualStream = ({ initialTransport, enabled = true }: UseJanusDualStreamOptions): UseJanusDualStreamResult => {
   const [frontStream, setFrontStream] = useState<MediaStream | null>(null);
   const [rearStream, setRearStream] = useState<MediaStream | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
@@ -41,6 +50,8 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
   const [reconnectAttemptsRear, setReconnectAttemptsRear] = useState(0);
   const [isFrontOnline, setIsFrontOnline] = useState(false);
   const [isRearOnline, setIsRearOnline] = useState(false);
+  const [transport, setTransport] = useState<JanusTransport>(initialTransport);
+  const [isSwitchingTransport, setIsSwitchingTransport] = useState(false);
 
   const janusFrontRef = useRef<Janus | null>(null);
   const janusRearRef = useRef<Janus | null>(null);
@@ -52,6 +63,11 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
   const reconnectAttemptRearRef = useRef(0);
   const janusInitializedRef = useRef(false);
   const mountedRef = useRef(false);
+  const suppressReconnectRef = useRef(false);
+  const switchingTransportRef = useRef(false);
+  const currentTransportRef = useRef<JanusTransport>(initialTransport);
+  const previousTransportRef = useRef<JanusTransport>(initialTransport);
+  const switchRetryRef = useRef(0);
 
   const updateAggregateStatus = useCallback((nextFrontStatus: CameraStatus, nextRearStatus: CameraStatus) => {
     if (nextFrontStatus === "online" && nextRearStatus === "online") {
@@ -131,6 +147,8 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
   }, []);
 
   const cleanup = useCallback(() => {
+    suppressReconnectRef.current = true;
+
     if (reconnectTimerFrontRef.current) {
       window.clearTimeout(reconnectTimerFrontRef.current);
       reconnectTimerFrontRef.current = null;
@@ -152,6 +170,10 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
     setErrorFront(null);
     setErrorRear(null);
     setError(null);
+    reconnectAttemptFrontRef.current = 0;
+    reconnectAttemptRearRef.current = 0;
+    setReconnectAttemptsFront(0);
+    setReconnectAttemptsRear(0);
   }, [cleanupCamera]);
 
   const attachStream = useCallback(
@@ -226,6 +248,8 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
         },
       });
     },
+    // Evita ciclo de dependencias entre attachStream/connectCamera/scheduleReconnect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [markStreamOnline],
   );
 
@@ -236,8 +260,8 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
       }
 
       const isFront = role === "front";
-      const server = isFront ? JANUS_CONFIG.JANUS_SERVER_FRONT_URL : JANUS_CONFIG.JANUS_SERVER_REAR_URL;
       const streamId = isFront ? JANUS_CONFIG.STREAM_FRONT_ID : JANUS_CONFIG.STREAM_REAR_ID;
+      const server = getJanusServerUrl(role, transport);
 
       if (isFront) {
         setFrontStatus("connecting");
@@ -254,7 +278,7 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
           scheduleReconnect(role, `No se pudo crear sesion Janus ${role}: ${String(sessionError)}`);
         },
         destroyed: () => {
-          if (mountedRef.current) {
+          if (mountedRef.current && !suppressReconnectRef.current) {
             scheduleReconnect(role, `Sesion Janus ${role} destruida.`);
           }
         },
@@ -266,13 +290,48 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
         janusRearRef.current = session;
       }
     },
-    [attachStream],
+    // Evita ciclo de dependencias entre connectCamera y scheduleReconnect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [attachStream, transport],
+  );
+
+  const rollbackTransport = useCallback(
+    (reason: string) => {
+      const previousTransport = previousTransportRef.current;
+      const failedTransport = currentTransportRef.current;
+
+      if (previousTransport === failedTransport) {
+        setIsSwitchingTransport(false);
+        switchRetryRef.current = 0;
+        return;
+      }
+
+      cleanup();
+      setErrorFront(`No se pudo cambiar a ${failedTransport.toUpperCase()} tras ${MAX_SWITCH_RETRIES} reintentos. Volviendo a ${previousTransport.toUpperCase()}. ${reason}`);
+      setErrorRear(`No se pudo cambiar a ${failedTransport.toUpperCase()} tras ${MAX_SWITCH_RETRIES} reintentos. Volviendo a ${previousTransport.toUpperCase()}. ${reason}`);
+      switchRetryRef.current = 0;
+      setIsSwitchingTransport(false);
+      setTransport(previousTransport);
+    },
+    [cleanup],
   );
 
   const scheduleReconnect = useCallback(
     (role: StreamRole, reason: string) => {
       if (!mountedRef.current) {
         return;
+      }
+
+      if (suppressReconnectRef.current) {
+        return;
+      }
+
+      if (switchingTransportRef.current) {
+        switchRetryRef.current += 1;
+        if (switchRetryRef.current >= MAX_SWITCH_RETRIES) {
+          rollbackTransport(reason);
+          return;
+        }
       }
 
       if (role === "front") {
@@ -316,10 +375,14 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
         connectCamera("rear");
       }, delay);
     },
-    [cleanupCamera, connectCamera],
+    [cleanupCamera, connectCamera, rollbackTransport],
   );
 
   const bootstrapJanus = useCallback(() => {
+    if (!enabled) {
+      return;
+    }
+
     const configError = validateJanusConfig();
     if (configError) {
       setFrontStatus("error");
@@ -337,6 +400,8 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
       setErrorRear(unsupported);
       return;
     }
+
+    suppressReconnectRef.current = false;
 
     if (janusInitializedRef.current) {
       connectCamera("front");
@@ -357,7 +422,21 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
         connectCamera("rear");
       },
     });
-  }, [connectCamera]);
+  }, [connectCamera, enabled]);
+
+  const switchTransport = useCallback(
+    (nextTransport: JanusTransport) => {
+      if (nextTransport === transport) {
+        return;
+      }
+
+      previousTransportRef.current = currentTransportRef.current;
+      switchRetryRef.current = 0;
+      setIsSwitchingTransport(true);
+      setTransport(nextTransport);
+    },
+    [transport],
+  );
 
   useEffect(() => {
     updateAggregateStatus(frontStatus, rearStatus);
@@ -377,6 +456,25 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
     };
   }, [bootstrapJanus, cleanup]);
 
+  useEffect(() => {
+    if (!isSwitchingTransport) {
+      return;
+    }
+
+    if (status === "online" || status === "partial") {
+      switchRetryRef.current = 0;
+      setIsSwitchingTransport(false);
+    }
+  }, [isSwitchingTransport, status]);
+
+  useEffect(() => {
+    switchingTransportRef.current = isSwitchingTransport;
+  }, [isSwitchingTransport]);
+
+  useEffect(() => {
+    currentTransportRef.current = transport;
+  }, [transport]);
+
   return {
     frontStream,
     rearStream,
@@ -388,5 +486,8 @@ export const useJanusDualStream = (): UseJanusDualStreamResult => {
     reconnectAttemptsRear,
     isFrontOnline,
     isRearOnline,
+    transport,
+    isSwitchingTransport,
+    switchTransport,
   };
 };

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { JanusTransport } from "../config/janusConfig";
 
 type CameraStatus = "connecting" | "online" | "error";
 type ConnectionStatus = "connecting" | "partial" | "online" | "error";
@@ -14,6 +15,9 @@ type HudViewProps = {
   reconnectAttemptsRear: number;
   isFrontOnline: boolean;
   isRearOnline: boolean;
+  transport: JanusTransport;
+  isSwitchingTransport: boolean;
+  onTransportChange: (nextTransport: JanusTransport) => void;
   telemetry: {
     speed: string;
     battery: string;
@@ -34,7 +38,22 @@ const cameraLabelMap: Record<CameraStatus, string> = {
   error: "Error",
 };
 
-export const HudView = ({ frontStream, rearStream, status, frontStatus, rearStatus, error, reconnectAttemptsFront, reconnectAttemptsRear, isFrontOnline, isRearOnline, telemetry }: HudViewProps) => {
+export const HudView = ({
+  frontStream,
+  rearStream,
+  status,
+  frontStatus,
+  rearStatus,
+  error,
+  reconnectAttemptsFront,
+  reconnectAttemptsRear,
+  isFrontOnline,
+  isRearOnline,
+  transport,
+  isSwitchingTransport,
+  onTransportChange,
+  telemetry,
+}: HudViewProps) => {
   const frontVideoRef = useRef<HTMLVideoElement>(null);
   const rearVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -75,6 +94,31 @@ export const HudView = ({ frontStream, rearStream, status, frontStatus, rearStat
           Cam F: {cameraLabelMap[frontStatus]} | Cam R: {cameraLabelMap[rearStatus]}
         </span>
       </header>
+
+      <section className="transport-control" aria-label="Selector de transporte">
+        <span className="transport-label">Transporte</span>
+        <div className="transport-buttons" role="radiogroup" aria-label="Modo de transporte Janus">
+          <button
+            type="button"
+            className={transport === "http" ? "is-active" : ""}
+            onClick={() => onTransportChange("http")}
+            disabled={isSwitchingTransport}
+            role="radio"
+            aria-checked={transport === "http"}>
+            HTTP
+          </button>
+          <button
+            type="button"
+            className={transport === "ws" ? "is-active" : ""}
+            onClick={() => onTransportChange("ws")}
+            disabled={isSwitchingTransport}
+            role="radio"
+            aria-checked={transport === "ws"}>
+            WebSocket
+          </button>
+        </div>
+        {isSwitchingTransport && <span className="transport-switching">Cambiando transporte...</span>}
+      </section>
 
       {error && <aside className="error-banner">{error}</aside>}
 
