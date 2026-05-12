@@ -1,13 +1,8 @@
-import { useState } from "react";
 import { HudView } from "./components/HudView";
 import { useJanusDualStream } from "./hooks/useJanusDualStream";
-import type { JanusTransport } from "./config/janusConfig";
+import { JANUS_CONFIG } from "./config/janusConfig";
 
-type HudRuntimeProps = {
-  initialTransport: JanusTransport;
-};
-
-const HudRuntime = ({ initialTransport }: HudRuntimeProps) => {
+const HudRuntime = () => {
   const {
     frontStream,
     rearStream,
@@ -22,7 +17,7 @@ const HudRuntime = ({ initialTransport }: HudRuntimeProps) => {
     transport,
     isSwitchingTransport,
     switchTransport,
-  } = useJanusDualStream({ initialTransport, enabled: true });
+  } = useJanusDualStream({ initialTransport: "ws", enabled: true });
 
   const reconnectLoad = reconnectAttemptsFront + reconnectAttemptsRear;
   const latencyText = status === "online" ? `${24 + (reconnectLoad % 18)} ms` : "-- ms";
@@ -42,6 +37,7 @@ const HudRuntime = ({ initialTransport }: HudRuntimeProps) => {
       transport={transport}
       isSwitchingTransport={isSwitchingTransport}
       onTransportChange={switchTransport}
+      showTransportSelector={JANUS_CONFIG.SHOW_TRANSPORT_SELECTOR}
       telemetry={{
         speed: "0 KM/H",
         battery: "95%",
@@ -52,28 +48,7 @@ const HudRuntime = ({ initialTransport }: HudRuntimeProps) => {
 };
 
 function App() {
-  const [selectedTransport, setSelectedTransport] = useState<JanusTransport | null>(null);
-
-  if (!selectedTransport) {
-    return (
-      <main className="transport-gate">
-        <section className="transport-gate-card" aria-label="Seleccion inicial de transporte">
-          <h1>Selecciona el transporte Janus</h1>
-          <p>Elige como quieres conectar esta sesion de testing.</p>
-          <div className="transport-gate-actions" role="group" aria-label="Opciones de transporte inicial">
-            <button type="button" onClick={() => setSelectedTransport("http")}>
-              HTTP
-            </button>
-            <button type="button" onClick={() => setSelectedTransport("ws")}>
-              WebSocket
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  return <HudRuntime initialTransport={selectedTransport} />;
+  return <HudRuntime />;
 }
 
 export default App;

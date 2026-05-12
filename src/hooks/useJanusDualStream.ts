@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Janus, { type JanusJsep, type JanusMessage, type JanusPluginHandle } from "janus-gateway/npm/dist/janus.es.js";
 import adapter from "webrtc-adapter";
-import { getJanusServerUrl, JANUS_CONFIG, type JanusTransport, validateJanusConfig } from "../config/janusConfig";
+import { getJanusServerUrl, JANUS_CONFIG, patchAnswerSdpWithVideoBitrate, type JanusTransport, validateJanusConfig } from "../config/janusConfig";
 
 type CameraStatus = "connecting" | "online" | "error";
 type ConnectionStatus = "connecting" | "partial" | "online" | "error";
@@ -211,7 +211,9 @@ export const useJanusDualStream = ({ initialTransport, enabled = true }: UseJanu
             jsep,
             media: { audioSend: false, videoSend: false, data: false },
             success: (localJsep) => {
-              pluginHandle?.send({ message: { request: "start" }, jsep: localJsep });
+              const patchedJsep = localJsep.sdp && JANUS_CONFIG.FORCE_SDP_VIDEO_BITRATE ? { ...localJsep, sdp: patchAnswerSdpWithVideoBitrate(localJsep.sdp) } : localJsep;
+
+              pluginHandle?.send({ message: { request: "start" }, jsep: patchedJsep });
             },
             error: (createAnswerError) => {
               scheduleReconnect(role, `Error SDP en stream ${role}: ${String(createAnswerError)}`);
