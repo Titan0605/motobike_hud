@@ -76,39 +76,79 @@ export const HudView = ({
   const [frontFps, setFrontFps] = useState(0);
   const [rearFps, setRearFps] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [camerasSwapped, setCamerasSwapped] = useState(false);
+
+  // Determinar cuál es la cámara principal y cuál es secundaria
+  const mainStream = camerasSwapped ? rearStream : frontStream;
+  const mainIsOnline = camerasSwapped ? isRearOnline : isFrontOnline;
+  const mainFps = camerasSwapped ? rearFps : frontFps;
+  const mainEnable = camerasSwapped ? rearEnable : frontEnable;
+  const mainSharpen = camerasSwapped ? rearSharpen : frontSharpen;
+  const mainSaturate = camerasSwapped ? rearSaturate : frontSaturate;
+  const mainContrast = camerasSwapped ? rearContrast : frontContrast;
+  const mainBrightness = camerasSwapped ? rearBrightness : frontBrightness;
+
+  const secondaryStream = camerasSwapped ? frontStream : rearStream;
+  const secondaryIsOnline = camerasSwapped ? isFrontOnline : isRearOnline;
+  const secondaryFps = camerasSwapped ? frontFps : rearFps;
+  const secondaryEnable = camerasSwapped ? frontEnable : rearEnable;
+  const secondarySharpen = camerasSwapped ? frontSharpen : rearSharpen;
+  const secondarySaturate = camerasSwapped ? frontSaturate : rearSaturate;
+  const secondaryContrast = camerasSwapped ? frontContrast : rearContrast;
+  const secondaryBrightness = camerasSwapped ? frontBrightness : rearBrightness;
+
+  const setMainEnable = camerasSwapped ? setRearEnable : setFrontEnable;
+  const setMainSharpen = camerasSwapped ? setRearSharpen : setFrontSharpen;
+  const setMainSaturate = camerasSwapped ? setRearSaturate : setFrontSaturate;
+  const setMainContrast = camerasSwapped ? setRearContrast : setFrontContrast;
+  const setMainBrightness = camerasSwapped ? setRearBrightness : setFrontBrightness;
+
+  const setSecondaryEnable = camerasSwapped ? setFrontEnable : setRearEnable;
+  const setSecondarySharpen = camerasSwapped ? setFrontSharpen : setRearSharpen;
+  const setSecondarySaturate = camerasSwapped ? setFrontSaturate : setRearSaturate;
+  const setSecondaryContrast = camerasSwapped ? setFrontContrast : setRearContrast;
+  const setSecondaryBrightness = camerasSwapped ? setFrontBrightness : setRearBrightness;
 
   return (
     <main className="hud-shell" aria-live="polite">
       <section className="front-layer">
         <FilteredVideo
-          stream={frontStream}
+          stream={mainStream}
           className="front-video"
-          enableFilters={frontEnable}
-          sharpen={frontSharpen}
-          saturate={frontSaturate}
-          contrast={frontContrast}
-          brightness={frontBrightness}
+          enableFilters={mainEnable}
+          sharpen={mainSharpen}
+          saturate={mainSaturate}
+          contrast={mainContrast}
+          brightness={mainBrightness}
           onStats={(s: StreamStats) => {
-            setFrontFps(s.fps);
+            if (camerasSwapped) {
+              setRearFps(s.fps);
+            } else {
+              setFrontFps(s.fps);
+            }
           }}
         />
-        {!isFrontOnline && <div className="stream-placeholder front-placeholder">Esperando camara frontal...</div>}
+        {!mainIsOnline && <div className="stream-placeholder front-placeholder">{camerasSwapped ? "Esperando retrovisor..." : "Esperando camara frontal..."}</div>}
       </section>
 
       <section className="rear-mirror">
         <FilteredVideo
-          stream={rearStream}
+          stream={secondaryStream}
           className="rear-video"
-          enableFilters={rearEnable}
-          sharpen={rearSharpen}
-          saturate={rearSaturate}
-          contrast={rearContrast}
-          brightness={rearBrightness}
+          enableFilters={secondaryEnable}
+          sharpen={secondarySharpen}
+          saturate={secondarySaturate}
+          contrast={secondaryContrast}
+          brightness={secondaryBrightness}
           onStats={(s: StreamStats) => {
-            setRearFps(s.fps);
+            if (camerasSwapped) {
+              setFrontFps(s.fps);
+            } else {
+              setRearFps(s.fps);
+            }
           }}
         />
-        {!isRearOnline && <div className="stream-placeholder rear-placeholder">Retrovisor sin senal...</div>}
+        {!secondaryIsOnline && <div className="stream-placeholder rear-placeholder">{camerasSwapped ? "Camara frontal sin señal..." : "Retrovisor sin señal..."}</div>}
       </section>
 
       <header className={`status-pill status-${status}`}>
@@ -124,8 +164,12 @@ export const HudView = ({
       </header>
 
       <div className="filter-stats">
-        <div>Frontal: {frontFps} FPS</div>
-        <div>Retro: {rearFps} FPS</div>
+        <div>
+          {camerasSwapped ? "Retro" : "Frontal"}: {mainFps} FPS
+        </div>
+        <div>
+          {camerasSwapped ? "Frontal" : "Retro"}: {secondaryFps} FPS
+        </div>
       </div>
 
       {showTransportSelector && (
@@ -164,42 +208,52 @@ export const HudView = ({
         <span className="filter-panel-toggle-icon">{filtersOpen ? "›" : "‹"}</span>
       </button>
 
+      <button
+        type="button"
+        className="swap-cameras-btn"
+        aria-label={camerasSwapped ? "Mostrar cámara frontal a pantalla completa" : "Mostrar retrovisor a pantalla completa"}
+        title={camerasSwapped ? "Cambiar a frontal" : "Cambiar a retrovisor"}
+        onClick={() => setCamerasSwapped((prev) => !prev)}>
+        ⇄
+      </button>
+
       <section className={`filter-panel ${filtersOpen ? "is-open" : "is-closed"}`} aria-label="Controles de filtros">
         <div className="filter-group">
-          <strong>Frontal</strong>
+          <strong>{camerasSwapped ? "Retrovisor" : "Frontal"}</strong>
           <label>
-            <input type="checkbox" checked={frontEnable} onChange={(e) => setFrontEnable(e.target.checked)} /> Activar filtros
+            <input type="checkbox" checked={mainEnable} onChange={(e) => setMainEnable(e.target.checked)} /> Activar filtros
           </label>
           <label>
-            <input type="checkbox" checked={frontSharpen} onChange={(e) => setFrontSharpen(e.target.checked)} /> Nitidez
+            <input type="checkbox" checked={mainSharpen} onChange={(e) => setMainSharpen(e.target.checked)} /> Nitidez
           </label>
           <label>
-            Saturación: <input type="range" min="0.5" max="2" step="0.01" value={frontSaturate} onChange={(e) => setFrontSaturate(parseFloat(e.target.value))} /> {frontSaturate.toFixed(2)}
+            Saturación: <input type="range" min="0.5" max="2" step="0.01" value={mainSaturate} onChange={(e) => setMainSaturate(parseFloat(e.target.value))} /> {mainSaturate.toFixed(2)}
           </label>
           <label>
-            Contraste: <input type="range" min="0.5" max="2" step="0.01" value={frontContrast} onChange={(e) => setFrontContrast(parseFloat(e.target.value))} /> {frontContrast.toFixed(2)}
+            Contraste: <input type="range" min="0.5" max="2" step="0.01" value={mainContrast} onChange={(e) => setMainContrast(parseFloat(e.target.value))} /> {mainContrast.toFixed(2)}
           </label>
           <label>
-            Brillo: <input type="range" min="0.5" max="1.5" step="0.01" value={frontBrightness} onChange={(e) => setFrontBrightness(parseFloat(e.target.value))} /> {frontBrightness.toFixed(2)}
+            Brillo: <input type="range" min="0.5" max="1.5" step="0.01" value={mainBrightness} onChange={(e) => setMainBrightness(parseFloat(e.target.value))} /> {mainBrightness.toFixed(2)}
           </label>
         </div>
 
         <div className="filter-group">
-          <strong>Retrovisor</strong>
+          <strong>{camerasSwapped ? "Frontal" : "Retrovisor"}</strong>
           <label>
-            <input type="checkbox" checked={rearEnable} onChange={(e) => setRearEnable(e.target.checked)} /> Activar filtros
+            <input type="checkbox" checked={secondaryEnable} onChange={(e) => setSecondaryEnable(e.target.checked)} /> Activar filtros
           </label>
           <label>
-            <input type="checkbox" checked={rearSharpen} onChange={(e) => setRearSharpen(e.target.checked)} /> Nitidez
+            <input type="checkbox" checked={secondarySharpen} onChange={(e) => setSecondarySharpen(e.target.checked)} /> Nitidez
           </label>
           <label>
-            Saturación: <input type="range" min="0.5" max="2" step="0.01" value={rearSaturate} onChange={(e) => setRearSaturate(parseFloat(e.target.value))} /> {rearSaturate.toFixed(2)}
+            Saturación: <input type="range" min="0.5" max="2" step="0.01" value={secondarySaturate} onChange={(e) => setSecondarySaturate(parseFloat(e.target.value))} /> {secondarySaturate.toFixed(2)}
           </label>
           <label>
-            Contraste: <input type="range" min="0.5" max="2" step="0.01" value={rearContrast} onChange={(e) => setRearContrast(parseFloat(e.target.value))} /> {rearContrast.toFixed(2)}
+            Contraste: <input type="range" min="0.5" max="2" step="0.01" value={secondaryContrast} onChange={(e) => setSecondaryContrast(parseFloat(e.target.value))} /> {secondaryContrast.toFixed(2)}
           </label>
           <label>
-            Brillo: <input type="range" min="0.5" max="1.5" step="0.01" value={rearBrightness} onChange={(e) => setRearBrightness(parseFloat(e.target.value))} /> {rearBrightness.toFixed(2)}
+            Brillo: <input type="range" min="0.5" max="1.5" step="0.01" value={secondaryBrightness} onChange={(e) => setSecondaryBrightness(parseFloat(e.target.value))} />{" "}
+            {secondaryBrightness.toFixed(2)}
           </label>
         </div>
       </section>

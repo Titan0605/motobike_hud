@@ -72,11 +72,13 @@ export const useJanusDualStream = ({ initialTransport, enabled = true }: UseJanu
   const updateAggregateStatus = useCallback((nextFrontStatus: CameraStatus, nextRearStatus: CameraStatus) => {
     if (nextFrontStatus === "online" && nextRearStatus === "online") {
       setStatus("online");
+      setError(null);
       return;
     }
 
     if (nextFrontStatus === "online" || nextRearStatus === "online") {
       setStatus("partial");
+      setError(null);
       return;
     }
 
@@ -340,9 +342,15 @@ export const useJanusDualStream = ({ initialTransport, enabled = true }: UseJanu
         if (reconnectTimerFrontRef.current) {
           return;
         }
+        const nextAttempt = reconnectAttemptFrontRef.current + 1;
+        // Limitar a máximo 3 intentos de reconexión
+        if (nextAttempt > 3) {
+          setFrontStatus("error");
+          setErrorFront(`${reason} (máx. reintentos alcanzados)`);
+          return;
+        }
         setFrontStatus("error");
         setErrorFront(reason);
-        const nextAttempt = reconnectAttemptFrontRef.current + 1;
         reconnectAttemptFrontRef.current = nextAttempt;
         setReconnectAttemptsFront(nextAttempt);
         const delay = Math.min(JANUS_CONFIG.RECONNECT_BASE_MS * 2 ** (nextAttempt - 1), JANUS_CONFIG.RECONNECT_MAX_MS);
@@ -361,9 +369,15 @@ export const useJanusDualStream = ({ initialTransport, enabled = true }: UseJanu
       if (reconnectTimerRearRef.current) {
         return;
       }
+      const nextAttempt = reconnectAttemptRearRef.current + 1;
+      // Limitar a máximo 3 intentos de reconexión
+      if (nextAttempt > 3) {
+        setRearStatus("error");
+        setErrorRear(`${reason} (máx. reintentos alcanzados)`);
+        return;
+      }
       setRearStatus("error");
       setErrorRear(reason);
-      const nextAttempt = reconnectAttemptRearRef.current + 1;
       reconnectAttemptRearRef.current = nextAttempt;
       setReconnectAttemptsRear(nextAttempt);
       const delay = Math.min(JANUS_CONFIG.RECONNECT_BASE_MS * 2 ** (nextAttempt - 1), JANUS_CONFIG.RECONNECT_MAX_MS);
