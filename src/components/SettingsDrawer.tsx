@@ -196,8 +196,7 @@ export const SettingsDrawer = ({
             </button>
           </div>
           <p className="text-center text-[10px] leading-snug text-zinc-600">
-            Para escritura directa al archivo corre: <span className="font-mono">npm run server</span> junto a{" "}
-            <span className="font-mono">npm run dev</span>
+            Se guarda en <span className="font-mono">public/config/channels.json</span> — editable también a mano en el repo.
           </p>
         </div>
       </aside>

@@ -1,8 +1,40 @@
 {
   "channels": [
-    { "id": 1, "name": "Cámara 1", "host": "192.168.0.197", "port": 8088, "path": "/janus", "streamId": 99, "enabled": true },
-    { "id": 2, "name": "Cámara 2", "host": "192.168.0.199", "port": 8088, "path": "/janus", "streamId": 100, "enabled": true },
-    { "id": 3, "name": "Cámara 3", "host": "192.168.0.198", "port": 8088, "path": "/janus", "streamId": 101, "enabled": true },
-    { "id": 4, "name": "Cámara 4", "host": "192.168.0.200", "port": 8088, "path": "/janus", "streamId": 102, "enabled": true }
+    {
+      "id": 1,
+      "name": "Cámara 1",
+      "host": "10.100.0.129",
+      "port": 8188,
+      "path": "/janus",
+      "streamId": 100,
+      "enabled": true
+    },
+    {
+      "id": 2,
+      "name": "Cámara 2",
+      "host": "192.168.0.199",
+      "port": 8088,
+      "path": "/janus",
+      "streamId": 100,
+      "enabled": false
+    },
+    {
+      "id": 3,
+      "name": "Cámara 3",
+      "host": "192.168.0.198",
+      "port": 8088,
+      "path": "/janus",
+      "streamId": 101,
+      "enabled": false
+    },
+    {
+      "id": 4,
+      "name": "Cámara 4",
+      "host": "192.168.0.200",
+      "port": 8088,
+      "path": "/janus",
+      "streamId": 102,
+      "enabled": false
+    }
   ]
 }

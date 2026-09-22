@@ -1,8 +1,8 @@
 // Config de canales del VMS.
 // Fuente canónica: public/config/channels.json (carpeta del proyecto, versionable).
-// La UI lee ese JSON y, si la mini-API (server/vms-config-server.mjs) está corriendo,
-// guarda ahí mismo vía PUT /api/channels. Sin API, los cambios quedan en localStorage
-// como override local + opción de descargar el JSON.
+// La API de config corre dentro de Vite (dev/preview), así que la UI lee y guarda ese JSON
+// vía /api/channels. Si la API no está disponible (build estático), hay fallback a
+// localStorage + opción de descargar el JSON.
 
 export type ChannelId = 1 | 2 | 3 | 4;
 
@@ -52,10 +52,20 @@ const parseJanusUrl = (url: string | undefined, fallbackHost: string): { host: s
   }
 };
 
-export const buildJanusUrl = (ch: Pick<ChannelConfig, "host" | "port" | "path">): string => {
-  const host = ch.host.trim();
+export const JANUS_PROXY_PREFIX = "/janus-api";
+
+/**
+ * URL del signalling Janus para el hook.
+ * - useProxy=true: mismo origen vía proxy de Vite (`/janus-api/<id>/janus`), evita CORS.
+ * - useProxy=false: directo a la Raspberry (`http://host:port/janus`).
+ */
+export const buildJanusUrl = (ch: ChannelConfig, useProxy = false): string => {
   const path = normalizePath(ch.path);
-  return `http://${host}:${ch.port}${path}`;
+  if (useProxy) {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}${JANUS_PROXY_PREFIX}/${ch.id}${path}`;
+  }
+  return `http://${ch.host.trim()}:${ch.port}${path}`;
 };
 
 const env = import.meta.env;
@@ -170,28 +180,51 @@ export const resolveChannels = async (): Promise<{ channels: ChannelConfig[]; so
   return { channels: defaults, source: "defaults", apiAvailable: false };
 };
 
+export interface PersistResult {
+  /** true si se escribió public/config/channels.json */
+  savedToFile: boolean;
+  /** true si, al no haber API, se guardó como override en localStorage */
+  usedLocalFallback: boolean;
+  error: string | null;
+}
+
 /**
- * Guarda canales. Intenta PUT /api/channels (escribe public/config/channels.json en disco).
- * Si la API no responde, guarda override en localStorage y lanza error para avisar.
+ * Guarda canales. Intenta PUT /api/channels, que escribe public/config/channels.json en disco
+ * (la API corre dentro de Vite en dev/preview). Si no hay API, guarda override en localStorage.
  */
-export const persistChannels = async (channels: ChannelConfig[]): Promise<{ savedToFile: boolean }> => {
+export const persistChannels = async (channels: ChannelConfig[]): Promise<PersistResult> => {
   const sorted = [...channels].sort((a, b) => a.id - b.id);
+
+  let res: Response;
   try {
-    const res = await fetch(CHANNELS_API_URL, {
+    res = await fetch(CHANNELS_API_URL, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channels: sorted }),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    clearLocalOverride();
-    return { savedToFile: true };
-  } catch (err) {
+  } catch {
     setLocalOverride(sorted);
-    throw new Error(
-      "Sin conexión a la mini-API: cambios guardados solo en este navegador (localStorage). Corre `npm run server` junto a `npm run dev` para escribir en public/config/channels.json.",
-      { cause: err },
-    );
+    return {
+      savedToFile: false,
+      usedLocalFallback: true,
+      error:
+        "No hay conexión con la API de configuración: cambios guardados solo en este navegador (localStorage). Para escribir el JSON, corre la app con `npm run dev`.",
+    };
   }
+
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) detail = body.error;
+    } catch {
+      /* respuesta sin JSON */
+    }
+    return { savedToFile: false, usedLocalFallback: false, error: `El servidor rechazó la configuración: ${detail}` };
+  }
+
+  clearLocalOverride();
+  return { savedToFile: true, usedLocalFallback: false, error: null };
 };
 
 /** Valida IP/hostname simple + puerto + streamId. Devuelve mensaje o null si ok. */

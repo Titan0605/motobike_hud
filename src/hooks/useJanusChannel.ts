@@ -18,7 +18,7 @@ const STREAMING_PLUGIN = "janus.plugin.streaming";
 
 type JanusSession = InstanceType<typeof Janus>;
 
-export const useJanusChannel = (config: ChannelConfig): JanusChannelState => {
+export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready = true): JanusChannelState => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [status, setStatus] = useState<ChannelStatus>(config.enabled ? "connecting" : "disabled");
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export const useJanusChannel = (config: ChannelConfig): JanusChannelState => {
   const attemptRef = useRef(0);
   const mountedRef = useRef(false);
 
-  const serverUrl = useMemo(() => buildJanusUrl(config), [config]);
+  const serverUrl = useMemo(() => buildJanusUrl(config, useProxy), [config, useProxy]);
   const { streamId, enabled } = config;
 
   const retry = useCallback(() => setNonce((n) => n + 1), []);
@@ -81,6 +81,14 @@ export const useJanusChannel = (config: ChannelConfig): JanusChannelState => {
       setError(null);
       setAttempts(0);
       attemptRef.current = 0;
+      return;
+    }
+
+    if (!ready) {
+      destroySession();
+      setStream(null);
+      setStatus("connecting");
+      setError(null);
       return;
     }
 
@@ -218,7 +226,7 @@ export const useJanusChannel = (config: ChannelConfig): JanusChannelState => {
       setStream(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverUrl, streamId, enabled, nonce]);
+  }, [serverUrl, streamId, enabled, ready, nonce]);
 
   return { stream, status, error, attempts, isOnline: status === "online", retry };
 };

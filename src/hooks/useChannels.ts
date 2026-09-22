@@ -61,24 +61,26 @@ export const useChannels = (): UseChannelsResult => {
     setError(null);
     try {
       const result = await persistChannels(channels);
-      const resolved = await resolveChannels().catch(() => null);
-      if (resolved) {
-        // Si se guardó en archivo, la API es la fuente; si no, mantenemos edición local
-        if (result.savedToFile) {
+      if (result.error) setError(result.error);
+
+      if (result.savedToFile) {
+        // Releer del archivo para reflejar exactamente lo persistido (y limpiar overrides locales)
+        const resolved = await resolveChannels().catch(() => null);
+        if (resolved) {
           setChannels(resolved.channels);
           setSource(resolved.source);
           setApiAvailable(resolved.apiAvailable);
         } else {
-          setSource("file+local");
+          setSource("api");
+          setApiAvailable(true);
         }
-      } else if (result.savedToFile) {
-        setSource("api");
-        setApiAvailable(true);
+      } else if (result.usedLocalFallback) {
+        setSource("file+local");
       }
-      return true;
+
+      return result.savedToFile;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      setSource("file+local");
       return false;
     } finally {
       setSaving(false);

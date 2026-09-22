@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:all": "node server/vms-config-server.mjs & vite",
     "server": "node server/vms-config-server.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

@@ -29,11 +29,13 @@ function App() {
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // 4 sesiones Janus independientes (orden estable, una por Raspberry)
-  const ch1 = useJanusChannel(channels[0]);
-  const ch2 = useJanusChannel(channels[1]);
-  const ch3 = useJanusChannel(channels[2]);
-  const ch4 = useJanusChannel(channels[3]);
+  // 4 sesiones Janus independientes. `ready` evita conectar antes de saber si hay proxy
+  // (la API de config corre dentro de Vite, así que su disponibilidad == proxy disponible).
+  const ready = !loading;
+  const ch1 = useJanusChannel(channels[0], apiAvailable, ready);
+  const ch2 = useJanusChannel(channels[1], apiAvailable, ready);
+  const ch3 = useJanusChannel(channels[2], apiAvailable, ready);
+  const ch4 = useJanusChannel(channels[3], apiAvailable, ready);
   const states = [ch1, ch2, ch3, ch4];
 
   const setLayoutPersist = (l: VmsLayout) => {
