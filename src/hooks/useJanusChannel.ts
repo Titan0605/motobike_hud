@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JanusJsep, JanusMessage, JanusPluginHandle } from "janus-gateway/npm/dist/janus.es.js";
 import { buildJanusUrl, RECONNECT, type ChannelConfig } from "../config/channels";
 import { ensureJanusInit, isWebrtcSupported, Janus } from "../lib/janusInit";
+import { patchAnswerSdpWithVideoBitrate, summarizeVideoCodecs } from "../lib/sdp";
 
 export type ChannelStatus = "connecting" | "online" | "error" | "disabled";
 
@@ -11,6 +12,10 @@ export interface JanusChannelState {
   error: string | null;
   attempts: number;
   isOnline: boolean;
+  /** Último estado ICE del navegador (new/checking/connected/completed/disconnected/failed/closed). */
+  ice: string;
+  /** Último estado de la PeerConnection. */
+  pc: string;
   retry: () => void;
 }
 
@@ -23,11 +28,14 @@ export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready =
   const [status, setStatus] = useState<ChannelStatus>(config.enabled ? "connecting" : "disabled");
   const [error, setError] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
+  const [ice, setIce] = useState("new");
+  const [pc, setPc] = useState("new");
   const [nonce, setNonce] = useState(0);
 
   const sessionRef = useRef<JanusSession | null>(null);
   const handleRef = useRef<JanusPluginHandle | null>(null);
   const timerRef = useRef<number | null>(null);
+  const iceTimerRef = useRef<number | null>(null);
   const attemptRef = useRef(0);
   const mountedRef = useRef(false);
 
@@ -45,6 +53,10 @@ export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready =
 
   const destroySession = useCallback(() => {
     clearTimer();
+    if (iceTimerRef.current !== null) {
+      window.clearTimeout(iceTimerRef.current);
+      iceTimerRef.current = null;
+    }
     try {
       handleRef.current?.hangup();
     } catch {
@@ -125,6 +137,7 @@ export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready =
     const attach = (session: JanusSession) => {
       let pluginHandle: JanusPluginHandle | null = null;
       const trackStream = new MediaStream();
+      let sdpLogged = false;
 
       session.attach({
         plugin: STREAMING_PLUGIN,
@@ -144,13 +157,18 @@ export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready =
             return;
           }
           if (!jsep || !pluginHandle) return;
+          if (!sdpLogged) {
+            sdpLogged = true;
+            console.info(`[VMS CH${config.id}] SDP offer video: ${summarizeVideoCodecs(jsep.sdp)}`);
+          }
           const handle = pluginHandle;
           handle.createAnswer({
             jsep,
             media: { audioSend: false, videoSend: false, data: false },
             success: (localJsep) => {
               if (cancelled) return;
-              handle.send({ message: { request: "start" }, jsep: localJsep });
+              const patchedJsep = localJsep.sdp ? { ...localJsep, sdp: patchAnswerSdpWithVideoBitrate(localJsep.sdp) } : localJsep;
+              handle.send({ message: { request: "start" }, jsep: patchedJsep });
             },
             error: (e) => {
               scheduleReconnect(`Error SDP: ${String(e)}`);
@@ -170,6 +188,36 @@ export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready =
         },
         webrtcState: (isUp: boolean) => {
           if (!isUp) scheduleReconnect("Conexión WebRTC caída.");
+        },
+        iceState: (state: string) => {
+          if (cancelled || !mountedRef.current) return;
+          setIce(state);
+          if (state === "connected" || state === "completed") {
+            if (iceTimerRef.current !== null) {
+              window.clearTimeout(iceTimerRef.current);
+              iceTimerRef.current = null;
+            }
+            return;
+          }
+          if (state === "failed" || state === "closed") {
+            scheduleReconnect(`ICE ${state}: el navegador no logra ruta de medios (UDP) hacia Janus.`);
+            return;
+          }
+          if (state === "disconnected" && iceTimerRef.current === null) {
+            // "disconnected" puede ser transitorio; solo actuar si se atasca.
+            iceTimerRef.current = window.setTimeout(() => {
+              iceTimerRef.current = null;
+              if (cancelled || !mountedRef.current) return;
+              scheduleReconnect("ICE atascado en 'disconnected': no llegan paquetes de medios.");
+            }, 8000);
+          }
+        },
+        connectionState: (state: string) => {
+          if (cancelled || !mountedRef.current) return;
+          setPc(state);
+          if (state === "failed") {
+            scheduleReconnect("PeerConnection fallida: sin ruta de medios hacia Janus.");
+          }
         },
         oncleanup: () => {
           if (cancelled || !mountedRef.current) return;
@@ -208,7 +256,7 @@ export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready =
       };
     }
 
-    if (!serverUrl.startsWith("http")) {
+    if (!serverUrl.startsWith("http") && !serverUrl.startsWith("ws")) {
       setStatus("error");
       setError("URL de Janus inválida.");
       return () => {
@@ -228,5 +276,5 @@ export const useJanusChannel = (config: ChannelConfig, useProxy = false, ready =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverUrl, streamId, enabled, ready, nonce]);
 
-  return { stream, status, error, attempts, isOnline: status === "online", retry };
+  return { stream, status, error, attempts, isOnline: status === "online", ice, pc, retry };
 };

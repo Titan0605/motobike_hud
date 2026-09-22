@@ -64,7 +64,7 @@ function App() {
     const config = channels[idx];
     const st = states[idx];
     if (!config || !st) return null;
-    return <VideoTile key={id} config={config} stream={st.stream} status={st.status} attempts={st.attempts} onRetry={st.retry} />;
+    return <VideoTile key={id} config={config} stream={st.stream} status={st.status} attempts={st.attempts} ice={st.ice} onRetry={st.retry} />;
   };
 
   const retryById = (id: ChannelId) => states[id - 1]?.retry();
@@ -101,10 +101,10 @@ function App() {
         saving={saving}
         error={error}
         statuses={{
-          1: { status: ch1.status, error: ch1.error },
-          2: { status: ch2.status, error: ch2.error },
-          3: { status: ch3.status, error: ch3.error },
-          4: { status: ch4.status, error: ch4.error },
+          1: { status: ch1.status, error: ch1.error, ice: ch1.ice, pc: ch1.pc },
+          2: { status: ch2.status, error: ch2.error, ice: ch2.ice, pc: ch2.pc },
+          3: { status: ch3.status, error: ch3.error, ice: ch3.ice, pc: ch3.pc },
+          4: { status: ch4.status, error: ch4.error, ice: ch4.ice, pc: ch4.pc },
         }}
         onUpdate={updateChannel}
         onSave={save}

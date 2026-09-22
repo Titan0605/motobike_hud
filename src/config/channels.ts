@@ -6,6 +6,9 @@
 
 export type ChannelId = 1 | 2 | 3 | 4;
 
+/** Transporte del signalling de Janus. La Raspberry suele exponer WS en 8188 y HTTP en 8088. */
+export type JanusTransport = "ws" | "http";
+
 export interface ChannelConfig {
   id: ChannelId;
   name: string;
@@ -15,6 +18,7 @@ export interface ChannelConfig {
   path: string;
   streamId: number;
   enabled: boolean;
+  transport: JanusTransport;
 }
 
 export const CHANNELS_JSON_URL = "/config/channels.json";
@@ -56,19 +60,45 @@ export const JANUS_PROXY_PREFIX = "/janus-api";
 
 /**
  * URL del signalling Janus para el hook.
- * - useProxy=true: mismo origen vía proxy de Vite (`/janus-api/<id>/janus`), evita CORS.
- * - useProxy=false: directo a la Raspberry (`http://host:port/janus`).
+ * - transport "ws": conexión directa por WebSocket (no aplica CORS). Ej: ws://host:8188/janus
+ * - transport "http" + useProxy: mismo origen vía proxy de Vite (evita CORS).
+ * - transport "http" sin proxy: directo. Ej: http://host:8088/janus
  */
 export const buildJanusUrl = (ch: ChannelConfig, useProxy = false): string => {
   const path = normalizePath(ch.path);
+  const host = ch.host.trim();
+
+  if (ch.transport === "ws") {
+    return `ws://${host}:${ch.port}${path}`;
+  }
+
   if (useProxy) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     return `${origin}${JANUS_PROXY_PREFIX}/${ch.id}${path}`;
   }
-  return `http://${ch.host.trim()}:${ch.port}${path}`;
+
+  return `http://${host}:${ch.port}${path}`;
 };
 
 const env = import.meta.env;
+
+const parseBoolean = (value: unknown, fallback = false): boolean => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+  }
+  if (typeof value === "boolean") return value;
+  return fallback;
+};
+
+/** Opciones de stream equivalentes a la rama feature/websocket_imp. */
+export const STREAM_OPTIONS = {
+  FORCE_SDP_VIDEO_BITRATE: parseBoolean(env.VITE_FORCE_SDP_VIDEO_BITRATE, false),
+  SDP_VIDEO_BITRATE_KBPS: toNumber(env.VITE_SDP_VIDEO_BITRATE_KBPS, 4000),
+};
+
+const resolveTransport = (value: unknown): JanusTransport => (value === "http" ? "http" : "ws");
 
 const defaultChannel = (
   id: ChannelId,
@@ -79,11 +109,13 @@ const defaultChannel = (
 ): ChannelConfig => {
   const parsed = parseJanusUrl(legacyUrl, fallbackHost);
   const host = (env[`VITE_CAM${id}_HOST`] as string | undefined) ?? parsed.host;
-  const port = toNumber(env[`VITE_CAM${id}_PORT`], parsed.port);
+  const transport = resolveTransport(env[`VITE_CAM${id}_TRANSPORT`]);
+  const defaultPort = transport === "ws" ? 8188 : parsed.port;
+  const port = toNumber(env[`VITE_CAM${id}_PORT`], defaultPort);
   const path = normalizePath((env[`VITE_CAM${id}_PATH`] as string | undefined) ?? parsed.path);
   const streamId = toNumber(env[`VITE_CAM${id}_STREAM_ID`], legacyStreamId);
   const name = (env[`VITE_CAM${id}_NAME`] as string | undefined) ?? fallbackName;
-  return { id, name, host, port, path, streamId, enabled: true };
+  return { id, name, host, port, path, streamId, enabled: true, transport };
 };
 
 /** Defaults compilados (fallback si el JSON no carga). Sincronizados con public/config/channels.json */
@@ -116,7 +148,14 @@ const sanitizeChannels = (input: unknown, base: ChannelConfig[]): ChannelConfig[
   const merged = base.map((d) => {
     const found = list.find((c) => isValidChannelShape(c) && c.id === d.id) as ChannelConfig | undefined;
     if (!found) return d;
-    return { ...d, ...found, id: d.id, path: normalizePath(String(found.path ?? d.path)) };
+    const foundTransport = (found as { transport?: unknown }).transport;
+    return {
+      ...d,
+      ...found,
+      id: d.id,
+      path: normalizePath(String(found.path ?? d.path)),
+      transport: foundTransport === undefined ? d.transport : resolveTransport(foundTransport),
+    };
   });
   return merged.length === 4 ? merged : null;
 };
@@ -234,6 +273,7 @@ export const validateChannel = (ch: ChannelConfig): string | null => {
   const hostOk = /^(?=.{1,253}$)(([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*|(\d{1,3}\.){3}\d{1,3})$/.test(host);
   if (!hostOk) return "Host/IP inválido.";
   if (!Number.isInteger(ch.port) || ch.port < 1 || ch.port > 65535) return "Puerto inválido (1-65535).";
+  if (ch.transport !== "ws" && ch.transport !== "http") return "Transporte inválido (ws o http).";
   if (!Number.isInteger(ch.streamId) || ch.streamId <= 0) return "Stream ID debe ser un entero positivo.";
   if (!ch.name.trim()) return "El nombre no puede estar vacío.";
   return null;

@@ -48,7 +48,19 @@ export const isValidChannel = (c) =>
   typeof c.path === "string" &&
   Number.isInteger(c.streamId) &&
   c.streamId > 0 &&
-  typeof c.enabled === "boolean";
+  typeof c.enabled === "boolean" &&
+  (c.transport === undefined || c.transport === "ws" || c.transport === "http");
+
+const normalizeChannel = (c) => ({
+  id: c.id,
+  name: c.name.trim(),
+  host: c.host.trim(),
+  port: c.port,
+  path: c.path.startsWith("/") ? c.path : `/${c.path}`,
+  streamId: c.streamId,
+  transport: c.transport === "http" ? "http" : "ws",
+  enabled: c.enabled,
+});
 
 const readBody = (req, limitBytes = 64 * 1024) =>
   new Promise((resolve, reject) => {
@@ -108,10 +120,10 @@ export async function handleConfigRequest(req, res) {
       const parsed = JSON.parse(raw);
       const channels = Array.isArray(parsed) ? parsed : parsed.channels;
       if (!Array.isArray(channels) || channels.length !== 4 || !channels.every(isValidChannel)) {
-        sendJson(res, 400, { error: "Body inválido: se esperan 4 canales con id/name/host/port/path/streamId/enabled." });
+        sendJson(res, 400, { error: "Body inválido: se esperan 4 canales con id/name/host/port/path/streamId/enabled (transport opcional)." });
         return true;
       }
-      const sorted = [...channels].sort((a, b) => a.id - b.id);
+      const sorted = channels.map(normalizeChannel).sort((a, b) => a.id - b.id);
       await fs.mkdir(path.dirname(CONFIG_FILE), { recursive: true });
       await fs.writeFile(CONFIG_FILE, `${JSON.stringify({ channels: sorted }, null, 2)}\n`, "utf-8");
       sendJson(res, 200, { ok: true, file: CONFIG_FILE, channels: sorted });

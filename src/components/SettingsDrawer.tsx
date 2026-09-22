@@ -5,6 +5,8 @@ import type { ChannelStatus } from "../hooks/useJanusChannel";
 interface ChannelLive {
   status: ChannelStatus;
   error: string | null;
+  ice: string;
+  pc: string;
 }
 
 interface SettingsDrawerProps {
@@ -122,14 +124,17 @@ export const SettingsDrawer = ({
                   </label>
                 </div>
 
-                <div className="mt-2 grid grid-cols-[72px_1fr] gap-2">
+                <div className="mt-2 grid grid-cols-[104px_1fr] gap-2">
                   <label className="block">
-                    <span className="mb-1 block text-[11px] text-zinc-500">Path</span>
-                    <input
-                      value={ch.path}
-                      onChange={(e) => onUpdate(ch.id, { path: e.target.value })}
+                    <span className="mb-1 block text-[11px] text-zinc-500">Transporte</span>
+                    <select
+                      value={ch.transport}
+                      onChange={(e) => onUpdate(ch.id, { transport: e.target.value === "http" ? "http" : "ws" })}
                       className={inputClass}
-                    />
+                    >
+                      <option value="ws">WebSocket</option>
+                      <option value="http">HTTP</option>
+                    </select>
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-[11px] text-zinc-500">Stream ID Janus</span>
@@ -142,11 +147,29 @@ export const SettingsDrawer = ({
                   </label>
                 </div>
 
+                <div className="mt-2 grid grid-cols-[72px_1fr] gap-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-zinc-500">Path</span>
+                    <input
+                      value={ch.path}
+                      onChange={(e) => onUpdate(ch.id, { path: e.target.value })}
+                      className={inputClass}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-zinc-500">URL efectiva</span>
+                    <div className="truncate rounded-md border border-white/5 bg-zinc-900/60 px-2 py-1.5 font-mono text-[11px] text-zinc-400">
+                      {ch.transport === "ws" ? "ws" : "http"}://{ch.host.trim() || "…"}:{ch.port}
+                      {ch.path}
+                    </div>
+                  </label>
+                </div>
+
                 {validation ? (
                   <p className="mt-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-300">{validation}</p>
                 ) : (
                   <p className="mt-2 truncate font-mono text-[11px] text-zinc-500">
-                    http://{ch.host.trim() || "…"}:{ch.port}
+                    {ch.transport === "ws" ? "ws" : "http"}://{ch.host.trim() || "…"}:{ch.port}
                     {ch.path} · id {ch.streamId}
                   </p>
                 )}
@@ -154,7 +177,8 @@ export const SettingsDrawer = ({
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-[11px] text-zinc-500">
                     Estado: <span className="font-semibold text-zinc-300">{live?.status ?? "…"}</span>
-                    {live?.error ? <span className="text-rose-400"> · {live.error.slice(0, 60)}</span> : ""}
+                    {" · "}ICE <span className="font-semibold text-zinc-300">{live?.ice ?? "…"}</span>
+                    {live?.error ? <span className="text-rose-400"> · {live.error.slice(0, 80)}</span> : ""}
                   </span>
                   <button
                     onClick={() => onRetry(ch.id)}

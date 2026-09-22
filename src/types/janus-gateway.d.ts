@@ -25,6 +25,7 @@ declare module "janus-gateway/npm/dist/janus.es.js" {
     onremotestream?: (stream: MediaStream) => void;
     onremotetrack?: (track: MediaStreamTrack, mid: string, on: boolean) => void;
     iceState?: (state: string) => void;
+    connectionState?: (state: string) => void;
     webrtcState?: (isUp: boolean) => void;
     oncleanup?: () => void;
   }
