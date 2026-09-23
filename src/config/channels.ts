@@ -27,8 +27,11 @@ const LOCAL_OVERRIDE_KEY = "vms-channels-local-v1";
 
 export const LAYOUT_STORAGE_KEY = "vms-layout-v1";
 export const FOCUSED_STORAGE_KEY = "vms-focused-v1";
+export const COLUMNS_STORAGE_KEY = "vms-columns-v1";
 
 export type VmsLayout = "1x1" | "2x1" | "2x2";
+/** Número de columnas de la grilla; controla la escala de los contenedores de video. */
+export type GridColumns = 1 | 2 | 3 | 4;
 export type ChannelsSource = "api" | "file" | "file+local" | "defaults";
 
 const toNumber = (value: unknown, fallback: number): number => {

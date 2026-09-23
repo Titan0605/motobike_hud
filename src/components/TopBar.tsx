@@ -1,10 +1,12 @@
-import type { ChannelId, VmsLayout } from "../config/channels";
+import type { ChannelId, GridColumns, VmsLayout } from "../config/channels";
 
 interface TopBarProps {
   layout: VmsLayout;
   onLayout: (l: VmsLayout) => void;
   focusedId: ChannelId;
   onFocused: (id: ChannelId) => void;
+  columns: GridColumns;
+  onColumns: (columns: GridColumns) => void;
   onlineCount: number;
   totalActive: number;
   apiAvailable: boolean;
@@ -13,11 +15,13 @@ interface TopBarProps {
 
 const layouts: { id: VmsLayout; label: string; title: string }[] = [
   { id: "1x1", label: "1×1", title: "Un canal (usa tabs CH)" },
-  { id: "2x1", label: "2×1", title: "Dos columnas, una fila (CH1–CH2)" },
+  { id: "2x1", label: "2×1", title: "Dos canales (CH1–CH2)" },
   { id: "2x2", label: "2×2", title: "Cuatro canales" },
 ];
 
-export const TopBar = ({ layout, onLayout, focusedId, onFocused, onlineCount, totalActive, apiAvailable, onOpenSettings }: TopBarProps) => (
+const columnOptions: GridColumns[] = [1, 2, 3, 4];
+
+export const TopBar = ({ layout, onLayout, focusedId, onFocused, columns, onColumns, onlineCount, totalActive, apiAvailable, onOpenSettings }: TopBarProps) => (
   <header className="flex h-12 shrink-0 items-center gap-2 border-b border-white/10 bg-zinc-950/95 px-2 sm:gap-3 sm:px-3">
     <div className="flex min-w-0 items-center gap-2">
       <span className="hidden h-2 w-2 rounded-full bg-emerald-400 sm:inline-block" />
@@ -47,6 +51,24 @@ export const TopBar = ({ layout, onLayout, focusedId, onFocused, onlineCount, to
             }`}
           >
             {l.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Columnas de la grilla: controla el tamaño de los contenedores de video */}
+      <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5" role="group" aria-label="Columnas de la grilla">
+        <span className="hidden pl-1.5 pr-0.5 text-[11px] font-medium text-zinc-500 lg:inline">Columnas</span>
+        {columnOptions.map((c) => (
+          <button
+            key={c}
+            title={`${c} columna${c > 1 ? "s" : ""}`}
+            aria-pressed={columns === c}
+            onClick={() => onColumns(c)}
+            className={`h-6 w-6 rounded-md text-xs font-semibold transition ${
+              columns === c ? "bg-zinc-100 text-zinc-950" : "text-zinc-400 hover:text-zinc-100"
+            }`}
+          >
+            {c}
           </button>
         ))}
       </div>

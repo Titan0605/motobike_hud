@@ -82,7 +82,7 @@ export const VideoTile = ({ config, stream, status, attempts, ice, onRetry }: Vi
   const online = status === "online" && stream;
 
   return (
-    <div className="relative min-h-0 min-w-0 overflow-hidden rounded-lg border border-white/10 bg-black" onClick={resume}>
+    <div className="relative h-full min-h-0 w-full min-w-0 overflow-hidden rounded-lg border border-white/10 bg-black" onClick={resume}>
       {online && (
         <FilteredVideo
           stream={stream}

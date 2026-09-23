@@ -1,33 +1,33 @@
 import type { ReactNode } from "react";
-import type { ChannelId, VmsLayout } from "../config/channels";
+import type { ChannelId, GridColumns, VmsLayout } from "../config/channels";
 
 interface VideoGridProps {
   layout: VmsLayout;
   focusedId: ChannelId;
+  columns: GridColumns;
   renderTile: (id: ChannelId) => ReactNode;
 }
 
-/** Grilla fija simple: 1x1 = canal enfocado, 2x1 = CH1-CH2, 2x2 = CH1-CH4 */
-export const VideoGrid = ({ layout, focusedId, renderTile }: VideoGridProps) => {
-  if (layout === "1x1") {
-    return <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 gap-2 p-2">{renderTile(focusedId)}</div>;
-  }
+const idsFor = (layout: VmsLayout, focusedId: ChannelId): ChannelId[] =>
+  layout === "1x1" ? [focusedId] : layout === "2x1" ? [1, 2] : [1, 2, 3, 4];
 
-  if (layout === "2x1") {
-    return (
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 gap-2 p-2 sm:grid-cols-2 sm:grid-rows-1">
-        {renderTile(1)}
-        {renderTile(2)}
-      </div>
-    );
-  }
+// Clases estáticas (Tailwind no admite nombres dinámicos).
+const columnClass: Record<GridColumns, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-1 sm:grid-cols-2",
+  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  4: "grid-cols-2 lg:grid-cols-4",
+};
 
+/**
+ * Grilla de canales. `columns` define cuántas columnas tiene la grilla; las filas se
+ * reparten el alto disponible. Menos columnas = contenedores más anchos.
+ */
+export const VideoGrid = ({ layout, focusedId, columns, renderTile }: VideoGridProps) => {
+  const ids = idsFor(layout, focusedId);
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-4 gap-2 p-2 sm:grid-cols-2 sm:grid-rows-2">
-      {renderTile(1)}
-      {renderTile(2)}
-      {renderTile(3)}
-      {renderTile(4)}
+    <div className={`grid min-h-0 flex-1 auto-rows-fr ${columnClass[columns]} gap-2 p-2`}>
+      {ids.map((id) => renderTile(id))}
     </div>
   );
 };

@@ -5,7 +5,7 @@ import { VideoTile } from "./components/VideoTile";
 import { SettingsDrawer } from "./components/SettingsDrawer";
 import { useChannels } from "./hooks/useChannels";
 import { useJanusChannel } from "./hooks/useJanusChannel";
-import { FOCUSED_STORAGE_KEY, LAYOUT_STORAGE_KEY, type ChannelId, type VmsLayout } from "./config/channels";
+import { FOCUSED_STORAGE_KEY, COLUMNS_STORAGE_KEY, LAYOUT_STORAGE_KEY, type ChannelId, type GridColumns, type VmsLayout } from "./config/channels";
 
 const readStored = <T extends string>(key: string, fallback: T): T => {
   try {
@@ -26,6 +26,10 @@ function App() {
   const [focusedId, setFocusedId] = useState<ChannelId>(() => {
     const v = Number(readStored(FOCUSED_STORAGE_KEY, "1"));
     return v >= 1 && v <= 4 ? (v as ChannelId) : 1;
+  });
+  const [columns, setColumns] = useState<GridColumns>(() => {
+    const v = Number(readStored(COLUMNS_STORAGE_KEY, "2"));
+    return v >= 1 && v <= 4 ? (v as GridColumns) : 2;
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -56,6 +60,15 @@ function App() {
     }
   };
 
+  const setColumnsPersist = (next: GridColumns) => {
+    setColumns(next);
+    try {
+      localStorage.setItem(COLUMNS_STORAGE_KEY, String(next));
+    } catch {
+      /* noop */
+    }
+  };
+
   const onlineCount = channels.filter((c, i) => c.enabled && states[i]?.isOnline).length;
   const totalActive = channels.filter((c) => c.enabled).length;
 
@@ -76,6 +89,8 @@ function App() {
         onLayout={setLayoutPersist}
         focusedId={focusedId}
         onFocused={setFocusedPersist}
+        columns={columns}
+        onColumns={setColumnsPersist}
         onlineCount={onlineCount}
         totalActive={totalActive}
         apiAvailable={apiAvailable}
@@ -89,7 +104,7 @@ function App() {
       )}
 
       <main className="flex min-h-0 flex-1 flex-col">
-        <VideoGrid layout={layout} focusedId={focusedId} renderTile={renderTile} />
+        <VideoGrid layout={layout} focusedId={focusedId} columns={columns} renderTile={renderTile} />
       </main>
 
       <SettingsDrawer
